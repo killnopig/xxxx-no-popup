@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         防彈出新分頁
 // @namespace    no-popup
-// @version      1.0
+// @version      1.1
 // @author       killnopig
 // @license      MIT
 // @description  阻止點擊播放鍵時跳出新分頁 / 彈窗廣告。感謝 nike 大
@@ -75,7 +75,28 @@
     return origDispatch.call(this, ev);
   };
 
-  // 5. 攔截 target=_blank 的表單送出
+  // 5. 防止切到背景 / 視窗失焦時自動暫停播放
+  //    讓網站永遠以為分頁在前景、視窗有焦點
+  try {
+    Object.defineProperty(Document.prototype, 'hidden', { get: () => false, configurable: true });
+    Object.defineProperty(Document.prototype, 'webkitHidden', { get: () => false, configurable: true });
+    Object.defineProperty(Document.prototype, 'visibilityState', { get: () => 'visible', configurable: true });
+    Object.defineProperty(Document.prototype, 'webkitVisibilityState', { get: () => 'visible', configurable: true });
+    Document.prototype.hasFocus = () => true;
+  } catch (e) {
+    log('無法覆寫可見性屬性:', e);
+  }
+  const swallow = (e) => {
+    // 只擋視窗 / 文件層級的事件，不影響輸入框等元素自己的 blur
+    if (e.target === window || e.target === document) {
+      e.stopImmediatePropagation();
+    }
+  };
+  ['visibilitychange', 'webkitvisibilitychange', 'blur', 'focusout'].forEach((type) => {
+    window.addEventListener(type, swallow, true);
+  });
+
+  // 6. 攔截 target=_blank 的表單送出
   const origSubmit = HTMLFormElement.prototype.submit;
   HTMLFormElement.prototype.submit = function () {
     if (this.target === '_blank') {
